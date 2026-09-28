@@ -298,10 +298,9 @@ npm --prefix frontend run build
 
 ### Backend on Render
 1. Connect this GitHub repository to Render.
-2. The included `render.yaml` automatically sets up the Python web service:
-   - **Root Directory:** `backend`
-   - **Build Command:** `pip install -r requirements.txt && python ml/train.py`
-   - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+2. The included `render.yaml` sets up the Python web service:
+   - **Build Command:** `pip install -r backend/requirements.txt`
+   - **Start Command:** `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`
 3. Configure environment variable `ALLOWED_ORIGINS` to include your Vercel frontend URL.
 
 ### Frontend on Vercel
@@ -309,12 +308,23 @@ npm --prefix frontend run build
 2. Set **Root Directory** to `frontend`.
 3. Set **Framework Preset** to `Vite`.
 4. Add Environment Variable:
-   - `VITE_API_URL`: `https://<your-render-backend-url>.onrender.com`
+   - `VITE_API_URL`: `https://machineguard-ai-backend.onrender.com`
 5. Deploy.
 
 ---
 
-## 14. License
+## 14. Live Cloud Deployments
+
+| Component | Platform | Live URL / Endpoint | Status |
+| :--- | :--- | :--- | :--- |
+| **Web Frontend** | Vercel | [https://machineguard-ai-chi.vercel.app](https://machineguard-ai-chi.vercel.app) | Live |
+| **Backend REST API** | Render | [https://machineguard-ai-backend.onrender.com](https://machineguard-ai-backend.onrender.com) | Live |
+| **Health Check** | Render | [https://machineguard-ai-backend.onrender.com/health](https://machineguard-ai-backend.onrender.com/health) | `200 OK` |
+| **Model Info** | Render | [https://machineguard-ai-backend.onrender.com/api/model-info](https://machineguard-ai-backend.onrender.com/api/model-info) | `200 OK` |
+
+---
+
+## 15. License
 
 This project is licensed under the MIT License — educational and research use only.
 
