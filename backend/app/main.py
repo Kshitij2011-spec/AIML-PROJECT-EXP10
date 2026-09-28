@@ -40,10 +40,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Enable CORS for frontend and development environments
+# Configurable CORS origins with sensible defaults for development and Vercel deployments
+ALLOWED_ORIGINS_ENV = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000",
+)
+allowed_origins = [o.strip() for o in ALLOWED_ORIGINS_ENV.split(",") if o.strip()]
+# If ALLOWED_ORIGINS contains "*", allow all origins (useful in dev/preview environments)
+allow_all = "*" in allowed_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"] if allow_all else allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app" if not allow_all else None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -67,6 +76,7 @@ async def root():
 
 
 @app.get("/health", response_model=HealthResponse, tags=["Monitoring"])
+@app.get("/api/health", response_model=HealthResponse, tags=["Monitoring"])
 async def health():
     service = ModelService.get_instance()
     return HealthResponse(
@@ -90,7 +100,35 @@ async def get_metrics():
     return ModelMetricsResponse(metrics=service.metrics)
 
 
+@app.get("/api/model-info", tags=["Model Info"])
+async def get_model_info():
+    service = ModelService.get_instance()
+    meta = service.metadata
+    metrics = service.metrics
+    selected = metrics.get("selected_model", {})
+    test_metrics = selected.get("test_metrics_tuned", {})
+    splits = meta.get("dataset_statistics", {}).get("splits", {})
+    return {
+        "model_name": meta.get("model_name"),
+        "model_version": meta.get("model_version"),
+        "algorithm": meta.get("algorithm"),
+        "selected_threshold": service.threshold,
+        "default_threshold": meta.get("default_threshold", 0.5),
+        "test_samples": splits.get("test_records", 1500),
+        "test_metrics": test_metrics,
+        "feature_importances": meta.get("feature_importances", []),
+        "dataset_statistics": meta.get("dataset_statistics", {}),
+        "engineered_feature_definitions": meta.get("engineered_feature_definitions", {}),
+        "ablation_comparison": metrics.get("ablation_comparison", {}),
+        "data_honesty_statement": meta.get(
+            "data_honesty_statement",
+            "Educational prototype trained on the AI4I 2020 synthetic predictive-maintenance benchmark. Results are not validated for deployment on real industrial machinery.",
+        ),
+    }
+
+
 @app.post("/predict", response_model=PredictionResponse, tags=["Inference"])
+@app.post("/api/predict", response_model=PredictionResponse, tags=["Inference"])
 async def predict(item: MachineInput):
     service = ModelService.get_instance()
     try:
@@ -100,6 +138,7 @@ async def predict(item: MachineInput):
 
 
 @app.post("/predict/batch", response_model=BatchPredictionResponse, tags=["Inference"])
+@app.post("/api/predict/batch", response_model=BatchPredictionResponse, tags=["Inference"])
 async def predict_batch(batch: BatchMachineInput):
     service = ModelService.get_instance()
     try:

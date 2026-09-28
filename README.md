@@ -232,15 +232,90 @@ uvicorn app.main:app --reload --port 8000
 The API will be available at `http://localhost:8000`. Interactive OpenAPI documentation is available at `http://localhost:8000/docs`.
 
 ### API Endpoints
-- `GET /health`: Model status and active decision threshold.
-- `GET /metadata`: Dataset statistics, feature importances, and honesty statement.
+- `GET /health` or `GET /api/health`: Model status and active decision threshold.
+- `GET /api/model-info`: Aggregated metadata, test metrics, feature importances, and dataset statistics.
+- `GET /metadata`: Detailed model metadata and schema definitions.
 - `GET /metrics`: Ablation results, test metrics, ROC and PR curve coordinates.
-- `POST /predict`: Single machine inference with risk diagnostics and recommendations.
+- `POST /predict` or `POST /api/predict`: Single machine inference with risk diagnostics and recommendations.
 - `POST /predict/batch`: Multi-record batch inference.
 
 ---
 
-## 11. License
+## 11. Frontend Application
+
+The web frontend is built using **React, Vite, TypeScript, and Tailwind CSS**, tailored for an engineering analytics workflow:
+- **Clean 2-Column Desktop Layout:** Left column handles input parameters and presets; right column focuses on real-time failure probability, risk categorization, and prescriptive advice.
+- **Physics-Informed Visualizations:** Global Random Forest Gini feature importances, live test metrics (Precision, Recall, F1, PR-AUC, ROC-AUC), and stepped architecture flow.
+- **Calm, Serious Aesthetics:** Slate neutral palette, accessible contrast ratios, zero neon gradients or decorative fluff.
+
+### Frontend Setup
+
+```bash
+# Navigate to frontend
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start Vite development server
+npm run dev
+```
+
+The frontend will run at `http://localhost:5173`.
+
+### Environment Variables
+Configure in `frontend/.env` or deployment platform:
+```bash
+# Backend API Base URL
+VITE_API_URL=http://localhost:8000
+```
+
+---
+
+## 12. Testing & Verification
+
+### Backend Tests (pytest)
+```bash
+# Run 9 backend unit & integration tests
+pytest backend/tests -v
+```
+
+### End-to-End Tests (Playwright)
+```bash
+# Run Playwright E2E test suite
+npx playwright test
+```
+
+### Production Build
+```bash
+# Build frontend for production
+npm --prefix frontend run build
+```
+
+---
+
+## 13. Cloud Deployment Guide
+
+### Backend on Render
+1. Connect this GitHub repository to Render.
+2. The included `render.yaml` automatically sets up the Python web service:
+   - **Root Directory:** `backend`
+   - **Build Command:** `pip install -r requirements.txt && python ml/train.py`
+   - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+3. Configure environment variable `ALLOWED_ORIGINS` to include your Vercel frontend URL.
+
+### Frontend on Vercel
+1. Import the repository in Vercel.
+2. Set **Root Directory** to `frontend`.
+3. Set **Framework Preset** to `Vite`.
+4. Add Environment Variable:
+   - `VITE_API_URL`: `https://<your-render-backend-url>.onrender.com`
+5. Deploy.
+
+---
+
+## 14. License
 
 This project is licensed under the MIT License — educational and research use only.
+
 

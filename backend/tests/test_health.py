@@ -55,3 +55,17 @@ def test_metrics_endpoint():
     assert "roc_curve" in selected
     assert selected["test_metrics_tuned"]["pr_auc"] > 0.80
     assert selected["test_metrics_tuned"]["f1"] > 0.75
+
+
+def test_api_model_info_endpoint():
+    response = client.get("/api/model-info")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["model_name"] == "MachineGuard AI - Industrial Predictive Maintenance"
+    assert data["test_samples"] == 1500
+    assert "test_metrics" in data
+    assert data["test_metrics"]["pr_auc"] == 0.8905
+    assert data["test_metrics"]["roc_auc"] == 0.9876
+    assert "feature_importances" in data
+    assert len(data["feature_importances"]) > 0
+
