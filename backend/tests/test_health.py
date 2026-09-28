@@ -26,6 +26,27 @@ def test_health_endpoint():
     assert 0.0 < data["selected_threshold"] < 1.0
 
 
+def test_health_head_endpoint():
+    response = client.head("/health")
+    assert response.status_code == 200
+    assert response.content == b""
+
+
+def test_api_health_endpoint():
+    response = client.get("/api/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "healthy"
+    assert data["model_loaded"] is True
+    assert "selected_threshold" in data
+
+
+def test_api_health_head_endpoint():
+    response = client.head("/api/health")
+    assert response.status_code == 200
+    assert response.content == b""
+
+
 def test_metadata_endpoint():
     response = client.get("/metadata")
     assert response.status_code == 200

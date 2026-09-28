@@ -3,7 +3,7 @@
 from contextlib import asynccontextmanager
 import os
 import sys
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 # Ensure backend root is on sys.path
@@ -75,13 +75,16 @@ async def root():
     }
 
 
-@app.get("/health", response_model=HealthResponse, tags=["Monitoring"])
-@app.get("/api/health", response_model=HealthResponse, tags=["Monitoring"])
-async def health():
+@app.api_route("/health", methods=["GET", "HEAD"], response_model=HealthResponse, tags=["Monitoring"])
+@app.api_route("/api/health", methods=["GET", "HEAD"], response_model=HealthResponse, tags=["Monitoring"])
+async def health(response: Response):
     service = ModelService.get_instance()
+    is_ready = service.pipeline is not None
+    if not is_ready:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return HealthResponse(
-        status="healthy",
-        model_loaded=service.pipeline is not None,
+        status="healthy" if is_ready else "unhealthy",
+        model_loaded=is_ready,
         model_version=service.metadata.get("model_version", "1.0.0"),
         selected_threshold=service.threshold,
         data_honesty=service.metadata.get("data_honesty_statement", ""),
