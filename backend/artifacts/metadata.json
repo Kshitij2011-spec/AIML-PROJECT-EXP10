@@ -1,0 +1,152 @@
+{
+  "model_name": "MachineGuard AI - Industrial Predictive Maintenance",
+  "model_version": "1.0.0",
+  "created_at": "2026-09-28T14:20:39.041259+00:00",
+  "algorithm": "RandomForestClassifier",
+  "class_weight": "balanced",
+  "selected_threshold": 0.56,
+  "default_threshold": 0.5,
+  "input_features": [
+    "Type",
+    "Air temperature [K]",
+    "Process temperature [K]",
+    "Rotational speed [rpm]",
+    "Torque [Nm]",
+    "Tool wear [min]"
+  ],
+  "engineered_features": [
+    "temperature_difference",
+    "mechanical_power_kw",
+    "wear_load"
+  ],
+  "engineered_feature_definitions": {
+    "temperature_difference": {
+      "formula": "Process temperature [K] - Air temperature [K]",
+      "unit": "K",
+      "description": "Thermal dissipation gradient between machine process and ambient air. Elevated differences indicate heat dissipation stress (HDF risk)."
+    },
+    "mechanical_power_kw": {
+      "formula": "Torque [Nm] * Rotational speed [rpm] * 2 * pi / 60 / 1000",
+      "unit": "kW",
+      "description": "Actual mechanical power transferred to the workpiece in kilowatts. Extreme values correlate with power failure (PWF risk)."
+    },
+    "wear_load": {
+      "formula": "Tool wear [min] * Torque [Nm]",
+      "unit": "min*Nm",
+      "description": "Compound mechanical abrasion indicator. High torque exerted on an already degraded tool correlates with tool wear failure (TWF) and overstrain (OSF)."
+    }
+  },
+  "all_transformed_features": [
+    "Type_M",
+    "Type_H",
+    "Air temperature [K]",
+    "Process temperature [K]",
+    "Rotational speed [rpm]",
+    "Torque [Nm]",
+    "Tool wear [min]",
+    "temperature_difference",
+    "mechanical_power_kw",
+    "wear_load"
+  ],
+  "feature_importances": [
+    {
+      "feature": "Rotational speed [rpm]",
+      "importance": 0.201
+    },
+    {
+      "feature": "mechanical_power_kw",
+      "importance": 0.1943
+    },
+    {
+      "feature": "Torque [Nm]",
+      "importance": 0.1814
+    },
+    {
+      "feature": "Tool wear [min]",
+      "importance": 0.1412
+    },
+    {
+      "feature": "wear_load",
+      "importance": 0.1159
+    },
+    {
+      "feature": "temperature_difference",
+      "importance": 0.0938
+    },
+    {
+      "feature": "Air temperature [K]",
+      "importance": 0.0405
+    },
+    {
+      "feature": "Process temperature [K]",
+      "importance": 0.0245
+    },
+    {
+      "feature": "Type_M",
+      "importance": 0.0051
+    },
+    {
+      "feature": "Type_H",
+      "importance": 0.0023
+    }
+  ],
+  "dataset_statistics": {
+    "dataset_name": "AI4I 2020 Predictive Maintenance Dataset",
+    "is_synthetic": true,
+    "total_records": 10000,
+    "total_failures": 339,
+    "total_non_failures": 9661,
+    "failure_rate_pct": 3.39,
+    "type_distribution": {
+      "L": 6000,
+      "M": 2997,
+      "H": 1003
+    },
+    "numeric_feature_stats": {
+      "Air temperature [K]": {
+        "min": 295.3,
+        "max": 304.5,
+        "mean": 300.0,
+        "std": 2.0,
+        "median": 300.1
+      },
+      "Process temperature [K]": {
+        "min": 305.7,
+        "max": 313.8,
+        "mean": 310.01,
+        "std": 1.48,
+        "median": 310.1
+      },
+      "Rotational speed [rpm]": {
+        "min": 1168.0,
+        "max": 2886.0,
+        "mean": 1538.78,
+        "std": 179.28,
+        "median": 1503.0
+      },
+      "Torque [Nm]": {
+        "min": 3.8,
+        "max": 76.6,
+        "mean": 39.99,
+        "std": 9.97,
+        "median": 40.1
+      },
+      "Tool wear [min]": {
+        "min": 0.0,
+        "max": 253.0,
+        "mean": 107.95,
+        "std": 63.65,
+        "median": 108.0
+      }
+    },
+    "splits": {
+      "train_records": 7000,
+      "val_records": 1500,
+      "test_records": 1500,
+      "train_failures": 237,
+      "val_failures": 51,
+      "test_failures": 51
+    }
+  },
+  "data_honesty_statement": "Educational prototype trained on the AI4I 2020 synthetic predictive-maintenance benchmark. Results are not validated for deployment on real industrial machinery."
+}
