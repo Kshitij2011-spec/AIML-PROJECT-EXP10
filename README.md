@@ -44,7 +44,7 @@ The raw dataset contains several failure-mode indicators:
 > **Critical Leakage Rule:** These columns describe specific post-failure root causes or arbitrary identifiers. Using them as model inputs constitutes severe target leakage. They are **strictly excluded** from all model inputs.
 
 ### Usable Features
-- `Type`: Machine quality variant (`L` = Low 50%, `M` = Medium 30%, `H` = High 20%)
+- `Type`: Machine product variant (`L` = 60.00%, `M` = 29.97%, `H` = 10.03%)
 - `Air temperature [K]`: Ambient temperature
 - `Process temperature [K]`: Cutting operation temperature
 - `Rotational speed [rpm]`: Spindle speed

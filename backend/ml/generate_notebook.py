@@ -86,7 +86,7 @@ df.head()""",
             """### Analysis: Dataset Schema & Data Quality
 * **Records:** 10,000 rows, 14 columns.
 * **Missing values:** 0 missing values across all columns.
-* **Product Types:** L (Low quality variant: 50%), M (Medium: 30%), H (High: 20%).
+* **Type distribution:** L = 60.00% (6,000), M = 29.97% (2,997), H = 10.03% (1,003).
 * **Numerical telemetry:** Air temperature [K], Process temperature [K], Rotational speed [rpm], Torque [Nm], and Tool wear [min].""",
         ),
         create_cell(
@@ -338,10 +338,13 @@ print(f"  FN: {cm_tuned[1,0]}  | TP: {cm_tuned[1,1]}")""",
         create_cell(
             "markdown",
             """### Analysis: Test Set Generalization
-* **PR-AUC on Test:** **0.8905** (demonstrating outstanding discriminatory power on the rare failure class).
+* **ROC-AUC on Test:** **0.9876** (high rank-ordering capability across nominal and failure modes).
+* **PR-AUC on Test:** **0.8905** (demonstrating strong discriminatory performance on the 3.39% rare failure class).
+* **F1-Score at Tuned Threshold (0.56):** **0.8235** (optimal harmonic balance between precision and recall).
 * **Recall at Tuned Threshold:** **82.35%** (correctly catching 42 out of 51 failures in the test set).
 * **Precision at Tuned Threshold:** **82.35%** (only 9 false alarms out of 1,449 normal machines).
-* **Generalization Consistency:** Test performance closely mirrors validation performance, confirming that the pipeline is neither underfitting nor overfitting.""",
+* **Accuracy at Tuned Threshold:** **98.80%** (1,482 out of 1,500 correct classifications).
+* **Generalization Consistency:** The test results are consistent with the validation results, indicating that the selected pipeline retains strong performance on the held-out test partition.""",
         ),
         create_cell(
             "markdown",

@@ -57,7 +57,7 @@ export const EXAMPLE_PRESETS: ExamplePreset[] = [
 export const FIELD_DEFINITIONS = {
   type: {
     label: "Machine Type",
-    description: "Product quality tier (L: 50%, M: 30%, H: 20%)",
+    description: "Product quality tier (L: 60.00%, M: 29.97%, H: 10.03%)",
   },
   air_temperature: {
     label: "Air Temperature",

@@ -123,7 +123,7 @@ export const MachineConditionsForm: React.FC<FormProps> = ({
               >
                 <span>Type {t}</span>
                 <span className={`text-[10px] ${input.type === t ? "text-slate-300" : "text-slate-400"}`}>
-                  {t === "L" ? "Low (50%)" : t === "M" ? "Medium (30%)" : "High (20%)"}
+                  {t === "L" ? "Low (60%)" : t === "M" ? "Medium (30%)" : "High (10%)"}
                 </span>
               </button>
             ))}
