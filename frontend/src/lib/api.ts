@@ -1,4 +1,4 @@
-import { HealthStatus, MachineInputData, ModelInfo, PredictionResult } from "../types/api";
+import { HealthStatus, MachineInputData, ModelInfo, PredictionResult, RandomForestTreeResponse } from "../types/api";
 
 const BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -38,6 +38,25 @@ export const api = {
       if (err instanceof ApiError) throw err;
       throw new ApiError(
         "Unable to retrieve model information. Check backend connectivity."
+      );
+    }
+  },
+
+  async getTree(treeIndex: number = 0, maxDepth?: number): Promise<RandomForestTreeResponse> {
+    try {
+      let url = `${BASE_URL}/api/model/tree/${treeIndex}`;
+      if (maxDepth !== undefined && maxDepth !== null) {
+        url += `?max_depth=${maxDepth}`;
+      }
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new ApiError(`Failed to fetch tree ${treeIndex}: HTTP ${res.status}`, res.status);
+      }
+      return await res.json();
+    } catch (err: unknown) {
+      if (err instanceof ApiError) throw err;
+      throw new ApiError(
+        `Unable to retrieve decision tree ${treeIndex}. Check backend connectivity.`
       );
     }
   },

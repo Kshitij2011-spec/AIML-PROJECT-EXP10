@@ -3,6 +3,7 @@ import { Header } from "./components/Header";
 import { MachineConditionsForm } from "./components/MachineConditionsForm";
 import { PredictionResultCard } from "./components/PredictionResultCard";
 import { ModelPerformanceSection } from "./components/ModelPerformanceSection";
+import { TreeExplorerSection } from "./components/TreeExplorerSection";
 import { FeatureImportanceSection } from "./components/FeatureImportanceSection";
 import { HowItWorksSection } from "./components/HowItWorksSection";
 import { FooterNotice } from "./components/FooterNotice";
@@ -129,6 +130,8 @@ export const App: React.FC = () => {
             modelInfo={modelInfo}
             loading={modelInfoLoading}
           />
+
+          <TreeExplorerSection />
 
           <FeatureImportanceSection
             importances={modelInfo?.feature_importances || []}

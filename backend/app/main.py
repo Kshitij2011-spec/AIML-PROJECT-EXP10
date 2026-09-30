@@ -3,7 +3,8 @@
 from contextlib import asynccontextmanager
 import os
 import sys
-from fastapi import FastAPI, HTTPException, Response, status
+from typing import Optional
+from fastapi import FastAPI, HTTPException, Path, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 # Ensure backend root is on sys.path
@@ -20,6 +21,7 @@ from app.schemas import (
     ModelMetadataResponse,
     ModelMetricsResponse,
     PredictionResponse,
+    RandomForestTreeResponse,
 )
 
 
@@ -115,10 +117,13 @@ async def get_model_info():
         "model_name": meta.get("model_name"),
         "model_version": meta.get("model_version"),
         "algorithm": meta.get("algorithm"),
+        "total_estimators": meta.get("total_estimators", 150),
         "selected_threshold": service.threshold,
         "default_threshold": meta.get("default_threshold", 0.5),
         "test_samples": splits.get("test_records", 1500),
         "test_metrics": test_metrics,
+        "baseline_comparison": metrics.get("baseline_comparison", {}),
+        "cross_validation": metrics.get("cross_validation", {}),
         "feature_importances": meta.get("feature_importances", []),
         "dataset_statistics": meta.get("dataset_statistics", {}),
         "engineered_feature_definitions": meta.get("engineered_feature_definitions", {}),
@@ -128,6 +133,29 @@ async def get_model_info():
             "Educational prototype trained on the AI4I 2020 synthetic predictive-maintenance benchmark. Results are not validated for deployment on real industrial machinery.",
         ),
     }
+
+
+@app.get(
+    "/api/model/tree/{tree_index}",
+    response_model=RandomForestTreeResponse,
+    tags=["Model Inspection"],
+)
+@app.get(
+    "/model/tree/{tree_index}",
+    response_model=RandomForestTreeResponse,
+    tags=["Model Inspection"],
+)
+async def get_model_tree(
+    tree_index: int = Path(..., ge=0, description="0-indexed tree estimator number (0 to 149)"),
+    max_depth: Optional[int] = Query(None, ge=1, le=20, description="Optional maximum depth filter for visualization"),
+):
+    service = ModelService.get_instance()
+    try:
+        return service.get_tree_structure(tree_index=tree_index, max_depth=max_depth)
+    except IndexError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tree extraction error: {str(e)}")
 
 
 @app.post("/predict", response_model=PredictionResponse, tags=["Inference"])

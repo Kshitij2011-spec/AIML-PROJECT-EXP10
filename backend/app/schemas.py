@@ -155,3 +155,47 @@ class ModelMetricsResponse(BaseModel):
     """Model evaluation and ablation metrics."""
 
     metrics: Dict[str, Any]
+
+
+class TreeNode(BaseModel):
+    """Individual node within a Random Forest decision tree."""
+
+    id: int
+    depth: int
+    is_leaf: bool
+    feature: Optional[str] = None
+    feature_label: Optional[str] = None
+    threshold: Optional[float] = None
+    threshold_unscaled: Optional[float] = None
+    unit: Optional[str] = None
+    condition_left: Optional[str] = None
+    condition_right: Optional[str] = None
+    gini: float
+    samples: int
+    class_counts: List[int]
+    class_proportions: List[float]
+    predicted_class: int
+    predicted_class_name: str
+    left_child: Optional[int] = None
+    right_child: Optional[int] = None
+
+
+class TreeEdge(BaseModel):
+    """Parent-to-child split connection in a decision tree."""
+
+    source: int
+    target: int
+    branch: Literal["left", "right"]
+    condition: str
+
+
+class RandomForestTreeResponse(BaseModel):
+    """Real extracted tree structure from the trained Random Forest model."""
+
+    tree_index: int
+    total_estimators: int
+    node_count: int
+    max_depth: int
+    filtered_max_depth: Optional[int] = None
+    nodes: List[TreeNode]
+    edges: List[TreeEdge]

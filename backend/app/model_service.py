@@ -17,8 +17,35 @@ from app.schemas import (
     EngineeredFeatureValues,
     MachineInput,
     PredictionResponse,
+    RandomForestTreeResponse,
     RiskFactor,
+    TreeEdge,
+    TreeNode,
 )
+
+FEATURE_LABELS = {
+    "Type_M": "Product Type: Medium",
+    "Type_H": "Product Type: High",
+    "Air temperature [K]": "Air Temperature",
+    "Process temperature [K]": "Process Temperature",
+    "Rotational speed [rpm]": "Rotational Speed",
+    "Torque [Nm]": "Torque",
+    "Tool wear [min]": "Tool Wear",
+    "temperature_difference": "Temperature Difference",
+    "mechanical_power_kw": "Mechanical Power",
+    "wear_load": "Wear Load",
+}
+
+FEATURE_UNITS = {
+    "Air temperature [K]": "K",
+    "Process temperature [K]": "K",
+    "Rotational speed [rpm]": "rpm",
+    "Torque [Nm]": "Nm",
+    "Tool wear [min]": "min",
+    "temperature_difference": "K",
+    "mechanical_power_kw": "kW",
+    "wear_load": "min·Nm",
+}
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ARTIFACTS_DIR = os.path.join(BASE_DIR, "artifacts")
@@ -64,6 +91,29 @@ class ModelService:
                 self.metrics = json.load(f)
 
         self.threshold = float(self.metadata.get("selected_threshold", 0.5))
+        self.feature_names = self.metadata.get(
+            "all_transformed_features",
+            [
+                "Type_M",
+                "Type_H",
+                "Air temperature [K]",
+                "Process temperature [K]",
+                "Rotational speed [rpm]",
+                "Torque [Nm]",
+                "Tool wear [min]",
+                "temperature_difference",
+                "mechanical_power_kw",
+                "wear_load",
+            ],
+        )
+        try:
+            scaler = self.pipeline.named_steps["preprocessor"].named_transformers_["num"]
+            self.scaler_mean = list(scaler.mean_)
+            self.scaler_scale = list(scaler.scale_)
+        except Exception:
+            self.scaler_mean = []
+            self.scaler_scale = []
+
         print(f"ModelService ready. Active decision threshold: {self.threshold:.4f}")
 
     def _to_dataframe(self, item: MachineInput) -> pd.DataFrame:
@@ -282,4 +332,149 @@ class ModelService:
             predicted_normals=normals,
             highest_risk_score=highest,
             predictions=predictions,
+        )
+
+    def get_tree_structure(
+        self,
+        tree_index: int = 0,
+        max_depth: Optional[int] = None,
+    ) -> RandomForestTreeResponse:
+        """Extract exact structure, thresholds, impurity, and samples for an estimator tree."""
+        if not self.pipeline or "classifier" not in self.pipeline.named_steps:
+            raise RuntimeError("Model pipeline is not properly initialized.")
+
+        rf = self.pipeline.named_steps["classifier"]
+        if not hasattr(rf, "estimators_"):
+            raise RuntimeError("Model does not expose ensemble estimators.")
+
+        total_estimators = len(rf.estimators_)
+        if tree_index < 0 or tree_index >= total_estimators:
+            raise IndexError(
+                f"Tree index {tree_index} out of range (0 to {total_estimators - 1})."
+            )
+
+        estimator = rf.estimators_[tree_index]
+        tree = estimator.tree_
+        total_tree_nodes = tree.node_count
+
+        # Compute depth for each node using BFS
+        node_depth: Dict[int, int] = {}
+        queue = [(0, 0)]
+        while queue:
+            nid, d = queue.pop(0)
+            node_depth[nid] = d
+            l = int(tree.children_left[nid])
+            r = int(tree.children_right[nid])
+            if l != -1:
+                queue.append((l, d + 1))
+            if r != -1:
+                queue.append((r, d + 1))
+
+        # Determine which node ids are included based on max_depth
+        if max_depth is not None:
+            included_ids = {nid for nid, d in node_depth.items() if d <= max_depth}
+        else:
+            included_ids = set(range(total_tree_nodes))
+
+        nodes: List[TreeNode] = []
+        edges: List[TreeEdge] = []
+
+        for nid in sorted(included_ids):
+            d = node_depth.get(nid, 0)
+            raw_left = int(tree.children_left[nid])
+            raw_right = int(tree.children_right[nid])
+            is_true_leaf = (raw_left == -1 and raw_right == -1)
+            is_depth_cutoff = (max_depth is not None and d == max_depth)
+            is_terminal = is_true_leaf or is_depth_cutoff
+
+            # Node values and class predictions
+            val0 = float(tree.value[nid][0][0])
+            val1 = float(tree.value[nid][0][1])
+            total_w = val0 + val1 if (val0 + val1) > 0 else 1.0
+            samples = int(tree.n_node_samples[nid])
+            norm_samples = round(samples * (val0 / total_w))
+            fail_samples = samples - norm_samples
+            pred_class = 1 if val1 > val0 else 0
+            pred_name = "Failure" if pred_class == 1 else "Normal"
+            gini = round(float(tree.impurity[nid]), 4)
+
+            feat_name: Optional[str] = None
+            feat_label: Optional[str] = None
+            unit: Optional[str] = None
+            raw_thresh: Optional[float] = None
+            unscaled_thresh: Optional[float] = None
+            cond_l: Optional[str] = None
+            cond_r: Optional[str] = None
+
+            if not is_terminal and not is_true_leaf:
+                f_idx = int(tree.feature[nid])
+                if 0 <= f_idx < len(self.feature_names):
+                    feat_name = self.feature_names[f_idx]
+                    feat_label = FEATURE_LABELS.get(feat_name, feat_name)
+                    unit = FEATURE_UNITS.get(feat_name, "")
+                    raw_thresh = round(float(tree.threshold[nid]), 4)
+                    if f_idx >= 2 and len(self.scaler_scale) > (f_idx - 2):
+                        unscaled = float(tree.threshold[nid]) * self.scaler_scale[f_idx - 2] + self.scaler_mean[f_idx - 2]
+                        unscaled_thresh = round(unscaled, 2)
+                        cond_l = f"≤ {unscaled_thresh} {unit}".strip()
+                        cond_r = f"> {unscaled_thresh} {unit}".strip()
+                    else:
+                        unscaled_thresh = 0.5
+                        variant = feat_label.replace("Product Type: ", "")
+                        cond_l = f"≠ {variant}"
+                        cond_r = f"= {variant}"
+
+            actual_left = raw_left if (not is_terminal and raw_left in included_ids) else None
+            actual_right = raw_right if (not is_terminal and raw_right in included_ids) else None
+
+            nodes.append(
+                TreeNode(
+                    id=nid,
+                    depth=d,
+                    is_leaf=is_terminal,
+                    feature=feat_name,
+                    feature_label=feat_label,
+                    threshold=raw_thresh,
+                    threshold_unscaled=unscaled_thresh,
+                    unit=unit,
+                    condition_left=cond_l,
+                    condition_right=cond_r,
+                    gini=gini,
+                    samples=samples,
+                    class_counts=[norm_samples, fail_samples],
+                    class_proportions=[round(val0 / total_w, 4), round(val1 / total_w, 4)],
+                    predicted_class=pred_class,
+                    predicted_class_name=pred_name,
+                    left_child=actual_left,
+                    right_child=actual_right,
+                )
+            )
+
+            if actual_left is not None and cond_l:
+                edges.append(
+                    TreeEdge(
+                        source=nid,
+                        target=actual_left,
+                        branch="left",
+                        condition=cond_l,
+                    )
+                )
+            if actual_right is not None and cond_r:
+                edges.append(
+                    TreeEdge(
+                        source=nid,
+                        target=actual_right,
+                        branch="right",
+                        condition=cond_r,
+                    )
+                )
+
+        return RandomForestTreeResponse(
+            tree_index=tree_index,
+            total_estimators=total_estimators,
+            node_count=len(nodes),
+            max_depth=int(tree.max_depth),
+            filtered_max_depth=max_depth,
+            nodes=nodes,
+            edges=edges,
         )
