@@ -45,6 +45,7 @@ test.describe("MachineGuard AI E2E Suite", () => {
           model_name: "MachineGuard AI - Industrial Predictive Maintenance",
           model_version: "1.0.0",
           algorithm: "RandomForestClassifier",
+          total_estimators: 150,
           selected_threshold: 0.56,
           default_threshold: 0.5,
           test_samples: 1500,
@@ -56,6 +57,37 @@ test.describe("MachineGuard AI E2E Suite", () => {
             roc_auc: 0.9876,
             pr_auc: 0.8905,
             confusion_matrix: { tn: 1440, fp: 9, fn: 9, tp: 42 },
+          },
+          baseline_comparison: {
+            model_name: "Majority Class Baseline",
+            strategy: "most_frequent",
+            accuracy: 0.966,
+            precision: 0.0,
+            recall: 0.0,
+            f1: 0.0,
+            macro_f1: 0.4914,
+            pr_auc: 0.034,
+            roc_auc: 0.5,
+            confusion_matrix: { tn: 1449, fp: 0, fn: 51, tp: 0 },
+            academic_note:
+              "The majority-class baseline achieves high accuracy (96.60%) simply because machine failures are rare (3.39%). Its failure recall is effectively zero, demonstrating why accuracy alone is insufficient for this problem.",
+          },
+          cross_validation: {
+            n_splits: 5,
+            scoring: "f1_macro",
+            partition: "train_only",
+            models: {
+              "Logistic Regression (Engineered Features)": {
+                fold_scores: [0.5992, 0.58, 0.601, 0.6106, 0.5951],
+                mean: 0.5972,
+                std: 0.01,
+              },
+              "Random Forest (Engineered Features)": {
+                fold_scores: [0.8898, 0.8876, 0.9067, 0.8691, 0.9199],
+                mean: 0.8946,
+                std: 0.0174,
+              },
+            },
           },
           feature_importances: [
             { feature: "Rotational speed [rpm]", importance: 0.201 },
@@ -73,6 +105,112 @@ test.describe("MachineGuard AI E2E Suite", () => {
           dataset_statistics: {},
           ablation_comparison: {},
           data_honesty_statement: "Educational prototype.",
+        }),
+      });
+    });
+
+    // Mock tree endpoint by default
+    await page.route("**/api/model/tree/*", async (route) => {
+      const url = route.request().url();
+      if (url.includes("/tree/999")) {
+        await route.fulfill({
+          status: 404,
+          headers: corsHeaders,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "Tree index 999 out of range" }),
+        });
+        return;
+      }
+
+      const match = url.match(/\/tree\/(\d+)/);
+      const treeIdx = match ? parseInt(match[1], 10) : 0;
+
+      await route.fulfill({
+        status: 200,
+        headers: corsHeaders,
+        contentType: "application/json",
+        body: JSON.stringify({
+          tree_index: treeIdx,
+          total_estimators: 150,
+          node_count: 3,
+          max_depth: 3,
+          filtered_max_depth: 3,
+          nodes: [
+            {
+              id: 0,
+              depth: 0,
+              is_leaf: false,
+              feature: "Rotational speed [rpm]",
+              feature_label: "Rotational Speed",
+              threshold: -0.8474,
+              threshold_unscaled: 1386.5,
+              unit: "rpm",
+              condition_left: "≤ 1386.5 rpm",
+              condition_right: "> 1386.5 rpm",
+              gini: 0.5,
+              samples: 2972,
+              class_counts: [2862, 110],
+              class_proportions: [0.5034, 0.4966],
+              predicted_class: 0,
+              predicted_class_name: "Normal",
+              left_child: 1,
+              right_child: 2,
+            },
+            {
+              id: 1,
+              depth: 1,
+              is_leaf: true,
+              feature: null,
+              feature_label: null,
+              threshold: null,
+              threshold_unscaled: null,
+              unit: null,
+              condition_left: null,
+              condition_right: null,
+              gini: 0.05,
+              samples: 521,
+              class_counts: [500, 21],
+              class_proportions: [0.96, 0.04],
+              predicted_class: 0,
+              predicted_class_name: "Normal",
+              left_child: null,
+              right_child: null,
+            },
+            {
+              id: 2,
+              depth: 1,
+              is_leaf: true,
+              feature: null,
+              feature_label: null,
+              threshold: null,
+              threshold_unscaled: null,
+              unit: null,
+              condition_left: null,
+              condition_right: null,
+              gini: 0.12,
+              samples: 2451,
+              class_counts: [2362, 89],
+              class_proportions: [0.963, 0.037],
+              predicted_class: 1,
+              predicted_class_name: "Failure",
+              left_child: null,
+              right_child: null,
+            },
+          ],
+          edges: [
+            {
+              source: 0,
+              target: 1,
+              branch: "left",
+              condition: "≤ 1386.5 rpm",
+            },
+            {
+              source: 0,
+              target: 2,
+              branch: "right",
+              condition: "> 1386.5 rpm",
+            },
+          ],
         }),
       });
     });
@@ -185,27 +323,122 @@ test.describe("MachineGuard AI E2E Suite", () => {
     await airInput.fill("315");
 
     // Click Reset
-    await page.getByRole("button", { name: "Reset" }).click();
+    await page.getByRole("button", { name: "Reset", exact: true }).click();
 
     // Should be restored to default (298.1)
     await expect(airInput).toHaveValue("298.1");
     await expect(page.getByText("Enter machine conditions and run a prediction.")).toBeVisible();
   });
 
-  test("Backend unavailability displays visible and calm error UI", async ({ page }) => {
-    // Mock 500 error from predict endpoint
-    await page.route("**/api/predict", async (route) => {
+  test("Model Performance shows 5-fold cross-validation and baseline comparison", async ({ page }) => {
+    // Verify Model Evaluation header
+    await expect(page.getByText("Model Evaluation & Performance Benchmarks")).toBeVisible();
+
+    // Verify 5-fold cross validation table appears
+    await expect(page.getByText(/5-Fold Stratified Cross-Validation/i).first()).toBeVisible();
+    await expect(page.getByText(/Mean Macro-F1/i)).toBeVisible();
+    await expect(page.getByText("Random Forest (Engineered Features)")).toBeVisible();
+
+    // Verify Model Comparison table appears
+    await expect(page.getByText(/Model Comparison: Baseline vs Logistic Regression vs Random Forest/i)).toBeVisible();
+    await expect(page.getByText("Majority Class Baseline")).toBeVisible();
+    await expect(page.getByText(/The majority-class baseline can achieve high accuracy/i)).toBeVisible();
+  });
+
+  test("Tree Explorer renders with tree selector, metadata, and decision/leaf nodes", async ({ page }) => {
+    const explorer = page.locator("#tree-explorer");
+    // Verify Tree Explorer Header
+    await expect(explorer.getByText("Random Forest Tree Explorer")).toBeVisible();
+    await expect(explorer.getByText("Total Trees:")).toBeVisible();
+    await expect(explorer.getByText("Tree 1", { exact: true })).toBeVisible();
+
+    // Verify decision node and leaf node exist in rendered canvas
+    await expect(explorer.getByText("ROOT", { exact: true })).toBeVisible();
+    await expect(explorer.getByText("Rotational Speed", { exact: true })).toBeVisible();
+    await expect(explorer.getByText("LEAF #1", { exact: true })).toBeVisible();
+    await expect(explorer.getByText("LEAF #2", { exact: true })).toBeVisible();
+    await expect(explorer.getByText("NORMAL", { exact: true })).toBeVisible();
+    await expect(explorer.getByText("FAILURE", { exact: true })).toBeVisible();
+
+    // Verify How to Read the Decision Tree explanation
+    await expect(explorer.getByText("How to Read the Decision Tree")).toBeVisible();
+    await expect(explorer.getByText(/Each decision node applies a learned split/i)).toBeVisible();
+  });
+
+  test("Changing tree selector triggers another tree API request", async ({ page }) => {
+    let tree1Requested = false;
+    await page.route("**/api/model/tree/1*", async (route) => {
+      tree1Requested = true;
       await route.fulfill({
-        status: 500,
+        status: 200,
+        headers: corsHeaders,
         contentType: "application/json",
-        body: JSON.stringify({ detail: "Internal inference error" }),
+        body: JSON.stringify({
+          tree_index: 1,
+          total_estimators: 150,
+          node_count: 3,
+          max_depth: 2,
+          nodes: [
+            {
+              id: 0,
+              depth: 0,
+              is_leaf: false,
+              feature: "Torque [Nm]",
+              feature_label: "Torque",
+              threshold: 0.12,
+              threshold_unscaled: 41.2,
+              unit: "Nm",
+              condition_left: "≤ 41.2 Nm",
+              condition_right: "> 41.2 Nm",
+              gini: 0.48,
+              samples: 3000,
+              class_counts: [2900, 100],
+              class_proportions: [0.5, 0.5],
+              predicted_class: 0,
+              predicted_class_name: "Normal",
+              left_child: 1,
+              right_child: 2,
+            },
+            {
+              id: 1,
+              depth: 1,
+              is_leaf: true,
+              gini: 0.01,
+              samples: 1200,
+              class_counts: [1190, 10],
+              class_proportions: [0.99, 0.01],
+              predicted_class: 0,
+              predicted_class_name: "Normal",
+              left_child: null,
+              right_child: null,
+            },
+            {
+              id: 2,
+              depth: 1,
+              is_leaf: true,
+              gini: 0.08,
+              samples: 1800,
+              class_counts: [1710, 90],
+              class_proportions: [0.95, 0.05],
+              predicted_class: 1,
+              predicted_class_name: "Failure",
+              left_child: null,
+              right_child: null,
+            },
+          ],
+          edges: [],
+        }),
       });
     });
 
-    // Run prediction
-    await page.getByRole("button", { name: /Run Prediction/i }).click();
+    const explorer = page.locator("#tree-explorer");
 
-    // Verify error UI is displayed
-    await expect(page.getByText(/Prediction Request Failed/i)).toBeVisible();
+    // Click Next Tree button
+    await explorer.getByRole("button", { name: "Next Tree" }).click();
+
+    // Verify Tree 2 is displayed and Torque node is visible
+    await expect(explorer.getByText("Tree 2", { exact: true })).toBeVisible();
+    await expect(explorer.getByText("Torque", { exact: true })).toBeVisible();
+    expect(tree1Requested).toBe(true);
   });
 });
