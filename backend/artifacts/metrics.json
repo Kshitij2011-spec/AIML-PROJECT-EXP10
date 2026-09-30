@@ -77,6 +77,53 @@
       }
     }
   },
+  "baseline_comparison": {
+    "model_name": "Majority Class Baseline",
+    "strategy": "most_frequent",
+    "accuracy": 0.966,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "macro_f1": 0.4914,
+    "pr_auc": 0.034,
+    "roc_auc": 0.5,
+    "confusion_matrix": {
+      "tn": 1449,
+      "fp": 0,
+      "fn": 51,
+      "tp": 0
+    },
+    "academic_note": "The majority-class baseline achieves high accuracy (96.60%) simply because machine failures are rare (3.39%). Its failure recall is effectively zero (0.0%), demonstrating why accuracy alone is misleading in heavily imbalanced maintenance problems."
+  },
+  "cross_validation": {
+    "n_splits": 5,
+    "scoring": "f1_macro",
+    "partition": "train_only",
+    "models": {
+      "Logistic Regression (Engineered Features)": {
+        "fold_scores": [
+          0.5992,
+          0.58,
+          0.601,
+          0.6106,
+          0.5951
+        ],
+        "mean": 0.5972,
+        "std": 0.01
+      },
+      "Random Forest (Engineered Features)": {
+        "fold_scores": [
+          0.8898,
+          0.8876,
+          0.9067,
+          0.8691,
+          0.9199
+        ],
+        "mean": 0.8946,
+        "std": 0.0174
+      }
+    }
+  },
   "selected_model": {
     "name": "Random Forest (Engineered Features)",
     "tuned_threshold": 0.56,

@@ -1,0 +1,343 @@
+{
+  "dataset": {
+    "dataset_name": "AI4I 2020 Predictive Maintenance Dataset",
+    "is_synthetic": true,
+    "total_records": 10000,
+    "total_failures": 339,
+    "total_non_failures": 9661,
+    "failure_rate_pct": 3.39,
+    "type_distribution": {
+      "L": 6000,
+      "M": 2997,
+      "H": 1003
+    },
+    "numeric_feature_stats": {
+      "Air temperature [K]": {
+        "min": 295.3,
+        "max": 304.5,
+        "mean": 300.0,
+        "std": 2.0,
+        "median": 300.1
+      },
+      "Process temperature [K]": {
+        "min": 305.7,
+        "max": 313.8,
+        "mean": 310.01,
+        "std": 1.48,
+        "median": 310.1
+      },
+      "Rotational speed [rpm]": {
+        "min": 1168.0,
+        "max": 2886.0,
+        "mean": 1538.78,
+        "std": 179.28,
+        "median": 1503.0
+      },
+      "Torque [Nm]": {
+        "min": 3.8,
+        "max": 76.6,
+        "mean": 39.99,
+        "std": 9.97,
+        "median": 40.1
+      },
+      "Tool wear [min]": {
+        "min": 0.0,
+        "max": 253.0,
+        "mean": 107.95,
+        "std": 63.65,
+        "median": 108.0
+      }
+    },
+    "target_variable": "Machine failure",
+    "usable_predictors": [
+      "Type",
+      "Air temperature [K]",
+      "Process temperature [K]",
+      "Rotational speed [rpm]",
+      "Torque [Nm]",
+      "Tool wear [min]"
+    ],
+    "engineered_features": [
+      "temperature_difference",
+      "mechanical_power_kw",
+      "wear_load"
+    ],
+    "strictly_excluded_leakage_columns": [
+      "UDI",
+      "Product ID",
+      "Machine failure",
+      "TWF",
+      "HDF",
+      "PWF",
+      "OSF",
+      "RNF"
+    ]
+  },
+  "data_split": {
+    "train_samples": 7000,
+    "train_failures": 237,
+    "val_samples": 1500,
+    "val_failures": 51,
+    "test_samples": 1500,
+    "test_failures": 51,
+    "stratified": true,
+    "random_state": 42
+  },
+  "baseline_results": {
+    "model_name": "Majority Class Baseline",
+    "strategy": "most_frequent",
+    "accuracy": 0.966,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "macro_f1": 0.4914,
+    "pr_auc": 0.034,
+    "roc_auc": 0.5,
+    "confusion_matrix": {
+      "tn": 1449,
+      "fp": 0,
+      "fn": 51,
+      "tp": 0
+    },
+    "academic_note": "The majority-class baseline achieves high accuracy (96.60%) simply because machine failures are rare (3.39%). Its failure recall is effectively zero (0.0%), demonstrating why accuracy alone is misleading in heavily imbalanced maintenance problems."
+  },
+  "ablation_results": {
+    "Logistic Regression (Original Features)": {
+      "engineered_features_included": false,
+      "model_type": "LogisticRegression",
+      "validation_metrics_default_threshold": {
+        "threshold": 0.5,
+        "accuracy": 0.8347,
+        "precision": 0.1365,
+        "recall": 0.7255,
+        "f1": 0.2298,
+        "roc_auc": 0.8749,
+        "pr_auc": 0.3834,
+        "confusion_matrix": {
+          "tn": 1215,
+          "fp": 234,
+          "fn": 14,
+          "tp": 37
+        }
+      }
+    },
+    "Logistic Regression (Engineered Features)": {
+      "engineered_features_included": true,
+      "model_type": "LogisticRegression",
+      "validation_metrics_default_threshold": {
+        "threshold": 0.5,
+        "accuracy": 0.864,
+        "precision": 0.1745,
+        "recall": 0.8039,
+        "f1": 0.2867,
+        "roc_auc": 0.9048,
+        "pr_auc": 0.3562,
+        "confusion_matrix": {
+          "tn": 1255,
+          "fp": 194,
+          "fn": 10,
+          "tp": 41
+        }
+      }
+    },
+    "Random Forest (Original Features)": {
+      "engineered_features_included": false,
+      "model_type": "RandomForestClassifier",
+      "validation_metrics_default_threshold": {
+        "threshold": 0.5,
+        "accuracy": 0.972,
+        "precision": 0.5738,
+        "recall": 0.6863,
+        "f1": 0.625,
+        "roc_auc": 0.9731,
+        "pr_auc": 0.6639,
+        "confusion_matrix": {
+          "tn": 1423,
+          "fp": 26,
+          "fn": 16,
+          "tp": 35
+        }
+      }
+    },
+    "Random Forest (Engineered Features)": {
+      "engineered_features_included": true,
+      "model_type": "RandomForestClassifier",
+      "validation_metrics_default_threshold": {
+        "threshold": 0.5,
+        "accuracy": 0.9873,
+        "precision": 0.8077,
+        "recall": 0.8235,
+        "f1": 0.8155,
+        "roc_auc": 0.9782,
+        "pr_auc": 0.8479,
+        "confusion_matrix": {
+          "tn": 1439,
+          "fp": 10,
+          "fn": 9,
+          "tp": 42
+        }
+      }
+    }
+  },
+  "cross_validation": {
+    "n_splits": 5,
+    "scoring": "f1_macro",
+    "partition": "train_only",
+    "models": {
+      "Logistic Regression (Engineered Features)": {
+        "fold_scores": [
+          0.5992,
+          0.58,
+          0.601,
+          0.6106,
+          0.5951
+        ],
+        "mean": 0.5972,
+        "std": 0.01
+      },
+      "Random Forest (Engineered Features)": {
+        "fold_scores": [
+          0.8898,
+          0.8876,
+          0.9067,
+          0.8691,
+          0.9199
+        ],
+        "mean": 0.8946,
+        "std": 0.0174
+      }
+    }
+  },
+  "threshold_tuning": {
+    "metric_optimized": "f1",
+    "tuning_partition": "validation_only",
+    "default_threshold": 0.5,
+    "selected_threshold": 0.56,
+    "validation_metrics_default": {
+      "threshold": 0.5,
+      "accuracy": 0.9873,
+      "precision": 0.8077,
+      "recall": 0.8235,
+      "f1": 0.8155,
+      "roc_auc": 0.9782,
+      "pr_auc": 0.8479,
+      "confusion_matrix": {
+        "tn": 1439,
+        "fp": 10,
+        "fn": 9,
+        "tp": 42
+      }
+    },
+    "validation_metrics_tuned": {
+      "threshold": 0.5599999999999999,
+      "accuracy": 0.9893,
+      "precision": 0.8723,
+      "recall": 0.8039,
+      "f1": 0.8367,
+      "roc_auc": 0.9782,
+      "pr_auc": 0.8479,
+      "confusion_matrix": {
+        "tn": 1443,
+        "fp": 6,
+        "fn": 10,
+        "tp": 41
+      }
+    }
+  },
+  "final_test_metrics": {
+    "default_threshold": {
+      "threshold": 0.5,
+      "accuracy": 0.9853,
+      "precision": 0.7636,
+      "recall": 0.8235,
+      "f1": 0.7925,
+      "roc_auc": 0.9876,
+      "pr_auc": 0.8905,
+      "confusion_matrix": {
+        "tn": 1436,
+        "fp": 13,
+        "fn": 9,
+        "tp": 42
+      }
+    },
+    "tuned_threshold": {
+      "threshold": 0.5599999999999999,
+      "accuracy": 0.988,
+      "precision": 0.8235,
+      "recall": 0.8235,
+      "f1": 0.8235,
+      "roc_auc": 0.9876,
+      "pr_auc": 0.8905,
+      "confusion_matrix": {
+        "tn": 1440,
+        "fp": 9,
+        "fn": 9,
+        "tp": 42
+      }
+    }
+  },
+  "confusion_matrix": {
+    "tn": 1440,
+    "fp": 9,
+    "fn": 9,
+    "tp": 42
+  },
+  "feature_importance": [
+    {
+      "feature": "Rotational speed [rpm]",
+      "importance": 0.201
+    },
+    {
+      "feature": "mechanical_power_kw",
+      "importance": 0.1943
+    },
+    {
+      "feature": "Torque [Nm]",
+      "importance": 0.1814
+    },
+    {
+      "feature": "Tool wear [min]",
+      "importance": 0.1412
+    },
+    {
+      "feature": "wear_load",
+      "importance": 0.1159
+    },
+    {
+      "feature": "temperature_difference",
+      "importance": 0.0938
+    },
+    {
+      "feature": "Air temperature [K]",
+      "importance": 0.0405
+    },
+    {
+      "feature": "Process temperature [K]",
+      "importance": 0.0245
+    },
+    {
+      "feature": "Type_M",
+      "importance": 0.0051
+    },
+    {
+      "feature": "Type_H",
+      "importance": 0.0023
+    }
+  ],
+  "model_configuration": {
+    "algorithm": "RandomForestClassifier",
+    "n_estimators": 150,
+    "max_depth": 12,
+    "class_weight": "balanced",
+    "random_state": 42,
+    "preprocessor": "ColumnTransformer(OneHotEncoder + StandardScaler)"
+  },
+  "tree_visualization_metadata": {
+    "total_estimators": 150,
+    "estimator_0_node_count": 245,
+    "estimator_0_max_depth": 12,
+    "svg_artifact": "backend/artifacts/random_forest_tree_0.svg",
+    "png_artifact": "backend/artifacts/random_forest_tree_0.png"
+  },
+  "data_honesty_statement": "Educational prototype trained on the AI4I 2020 synthetic predictive-maintenance benchmark. Results are not validated for deployment on real industrial machinery."
+}

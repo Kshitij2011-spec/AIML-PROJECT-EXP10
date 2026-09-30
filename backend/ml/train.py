@@ -9,9 +9,19 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
+from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
+from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -260,10 +270,83 @@ def run_training_pipeline() -> Tuple[Pipeline, Dict[str, Any], Dict[str, Any]]:
     print(f"Test Default Threshold (0.50) -> F1: {default_test_metrics['f1']:.4f}, Recall: {default_test_metrics['recall']:.4f}, Precision: {default_test_metrics['precision']:.4f}, PR-AUC: {default_test_metrics['pr_auc']:.4f}")
     print(f"Test Tuned Threshold   ({tuned_threshold:.2f}) -> F1: {tuned_test_metrics['f1']:.4f}, Recall: {tuned_test_metrics['recall']:.4f}, Precision: {tuned_test_metrics['precision']:.4f}, PR-AUC: {tuned_test_metrics['pr_auc']:.4f}")
 
+    # 6. Baseline Evaluation on Untouched Test Set
+    print("\n--- Evaluating Majority Class Baseline on Test Set ---")
+    dummy = DummyClassifier(strategy="most_frequent")
+    dummy.fit(X_train, y_train)
+    dummy_preds = dummy.predict(X_test)
+    dummy_probs = dummy.predict_proba(X_test)[:, 1]
+    dummy_cm = confusion_matrix(y_test, dummy_preds)
+    dummy_tn, dummy_fp, dummy_fn, dummy_tp = dummy_cm.ravel()
+
+    baseline_metrics = {
+        "model_name": "Majority Class Baseline",
+        "strategy": "most_frequent",
+        "accuracy": round(float(accuracy_score(y_test, dummy_preds)), 4),
+        "precision": round(float(precision_score(y_test, dummy_preds, zero_division=0)), 4),
+        "recall": round(float(recall_score(y_test, dummy_preds, zero_division=0)), 4),
+        "f1": round(float(f1_score(y_test, dummy_preds, zero_division=0)), 4),
+        "macro_f1": round(float(f1_score(y_test, dummy_preds, average="macro", zero_division=0)), 4),
+        "pr_auc": round(float(average_precision_score(y_test, dummy_probs)), 4),
+        "roc_auc": round(float(roc_auc_score(y_test, dummy_probs)), 4),
+        "confusion_matrix": {
+            "tn": int(dummy_tn),
+            "fp": int(dummy_fp),
+            "fn": int(dummy_fn),
+            "tp": int(dummy_tp),
+        },
+        "academic_note": (
+            "The majority-class baseline achieves high accuracy (96.60%) simply because machine failures are rare (3.39%). "
+            "Its failure recall is effectively zero (0.0%), demonstrating why accuracy alone is misleading in heavily imbalanced maintenance problems."
+        ),
+    }
+    print(f"Majority Baseline -> Accuracy: {baseline_metrics['accuracy']:.4f} | Recall: {baseline_metrics['recall']:.4f} | Macro-F1: {baseline_metrics['macro_f1']:.4f}")
+
+    # 7. 5-Fold Stratified Cross-Validation on Training Partition ONLY (Leakage-free)
+    print("\n--- Running 5-Fold Stratified Cross-Validation on Train Split (f1_macro) ---")
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    pipe_lr_cv = build_pipeline(
+        LogisticRegression(class_weight="balanced", random_state=42, max_iter=1000),
+        include_engineered=True,
+    )
+    pipe_rf_cv = build_pipeline(
+        RandomForestClassifier(
+            n_estimators=150,
+            max_depth=12,
+            class_weight="balanced",
+            random_state=42,
+            n_jobs=-1,
+        ),
+        include_engineered=True,
+    )
+
+    lr_cv_scores = cross_val_score(pipe_lr_cv, X_train, y_train, cv=cv, scoring="f1_macro", n_jobs=-1)
+    rf_cv_scores = cross_val_score(pipe_rf_cv, X_train, y_train, cv=cv, scoring="f1_macro", n_jobs=-1)
+
+    cv_report = {
+        "n_splits": 5,
+        "scoring": "f1_macro",
+        "partition": "train_only",
+        "models": {
+            "Logistic Regression (Engineered Features)": {
+                "fold_scores": [round(float(s), 4) for s in lr_cv_scores],
+                "mean": round(float(lr_cv_scores.mean()), 4),
+                "std": round(float(lr_cv_scores.std()), 4),
+            },
+            "Random Forest (Engineered Features)": {
+                "fold_scores": [round(float(s), 4) for s in rf_cv_scores],
+                "mean": round(float(rf_cv_scores.mean()), 4),
+                "std": round(float(rf_cv_scores.std()), 4),
+            },
+        },
+    }
+    print(f"LR (Engineered) CV Macro-F1: {cv_report['models']['Logistic Regression (Engineered Features)']['mean']:.4f} ± {cv_report['models']['Logistic Regression (Engineered Features)']['std']:.4f}")
+    print(f"RF (Engineered) CV Macro-F1: {cv_report['models']['Random Forest (Engineered Features)']['mean']:.4f} ± {cv_report['models']['Random Forest (Engineered Features)']['std']:.4f}")
+
     # Curves for frontend visualization
     curve_points = get_curve_points(y_test, test_probs)
 
-    # 6. Feature Importances
+    # 8. Feature Importances
     rf_clf: RandomForestClassifier = primary_pipe.named_steps["classifier"]
     transformed_feature_names = extract_feature_names(primary_pipe, include_engineered=True)
     importances = rf_clf.feature_importances_
@@ -280,13 +363,45 @@ def run_training_pipeline() -> Tuple[Pipeline, Dict[str, Any], Dict[str, Any]]:
     for item in feature_importance_list:
         print(f"  - {item['feature']:<25}: {item['importance']:.4f}")
 
-    # 7. Assemble Metadata & Metrics dictionaries
+    # 9. Generate Tree Visualization Artifact (SVG and PNG)
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from sklearn.tree import plot_tree
+
+        fig, ax = plt.subplots(figsize=(24, 12), dpi=150)
+        plot_tree(
+            rf_clf.estimators_[0],
+            max_depth=3,
+            feature_names=transformed_feature_names,
+            class_names=["Normal", "Failure"],
+            filled=True,
+            rounded=True,
+            impurity=True,
+            proportion=False,
+            ax=ax,
+            fontsize=9,
+        )
+        ax.set_title("MachineGuard AI — Random Forest Estimator #0 (Top Decision Split Hierarchy)", fontsize=14, weight="bold")
+        fig.tight_layout()
+        svg_tree_path = os.path.join(ARTIFACTS_DIR, "random_forest_tree_0.svg")
+        png_tree_path = os.path.join(ARTIFACTS_DIR, "random_forest_tree_0.png")
+        fig.savefig(svg_tree_path, format="svg", bbox_inches="tight")
+        fig.savefig(png_tree_path, format="png", bbox_inches="tight")
+        plt.close(fig)
+        print(f"\nSaved tree visualization artifacts:\n  - {svg_tree_path}\n  - {png_tree_path}")
+    except Exception as e:
+        print(f"Notice: Matplotlib tree plot skipped ({str(e)})")
+
+    # 10. Assemble Metadata & Metrics dictionaries
     metadata = {
         "model_name": "MachineGuard AI - Industrial Predictive Maintenance",
         "model_version": "1.0.0",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "algorithm": "RandomForestClassifier",
         "class_weight": "balanced",
+        "total_estimators": len(rf_clf.estimators_),
         "selected_threshold": round(tuned_threshold, 4),
         "default_threshold": 0.5,
         "input_features": CATEGORICAL_FEATURES + NUMERIC_FEATURES,
@@ -313,6 +428,8 @@ def run_training_pipeline() -> Tuple[Pipeline, Dict[str, Any], Dict[str, Any]]:
 
     metrics_report = {
         "ablation_comparison": ablation_results,
+        "baseline_comparison": baseline_metrics,
+        "cross_validation": cv_report,
         "selected_model": {
             "name": primary_name,
             "tuned_threshold": round(tuned_threshold, 4),
@@ -325,7 +442,62 @@ def run_training_pipeline() -> Tuple[Pipeline, Dict[str, Any], Dict[str, Any]]:
         },
     }
 
-    # 8. Save Artifacts
+    # 11. Compile machine-readable academic report results artifact
+    sample_tree = rf_clf.estimators_[0].tree_
+    report_results = {
+        "dataset": {
+            **dataset_stats,
+            "target_variable": TARGET_COLUMN,
+            "usable_predictors": CATEGORICAL_FEATURES + NUMERIC_FEATURES,
+            "engineered_features": ENGINEERED_NUMERIC_FEATURES,
+            "strictly_excluded_leakage_columns": DROP_COLUMNS,
+        },
+        "data_split": {
+            "train_samples": len(X_train),
+            "train_failures": int(y_train.sum()),
+            "val_samples": len(X_val),
+            "val_failures": int(y_val.sum()),
+            "test_samples": len(X_test),
+            "test_failures": int(y_test.sum()),
+            "stratified": True,
+            "random_state": 42,
+        },
+        "baseline_results": baseline_metrics,
+        "ablation_results": ablation_results,
+        "cross_validation": cv_report,
+        "threshold_tuning": {
+            "metric_optimized": "f1",
+            "tuning_partition": "validation_only",
+            "default_threshold": 0.5,
+            "selected_threshold": round(tuned_threshold, 4),
+            "validation_metrics_default": default_val_metrics,
+            "validation_metrics_tuned": tuned_val_metrics,
+        },
+        "final_test_metrics": {
+            "default_threshold": default_test_metrics,
+            "tuned_threshold": tuned_test_metrics,
+        },
+        "confusion_matrix": tuned_test_metrics["confusion_matrix"],
+        "feature_importance": feature_importance_list,
+        "model_configuration": {
+            "algorithm": "RandomForestClassifier",
+            "n_estimators": 150,
+            "max_depth": 12,
+            "class_weight": "balanced",
+            "random_state": 42,
+            "preprocessor": "ColumnTransformer(OneHotEncoder + StandardScaler)",
+        },
+        "tree_visualization_metadata": {
+            "total_estimators": len(rf_clf.estimators_),
+            "estimator_0_node_count": int(sample_tree.node_count),
+            "estimator_0_max_depth": int(sample_tree.max_depth),
+            "svg_artifact": "backend/artifacts/random_forest_tree_0.svg",
+            "png_artifact": "backend/artifacts/random_forest_tree_0.png",
+        },
+        "data_honesty_statement": metadata["data_honesty_statement"],
+    }
+
+    # 12. Save Artifacts
     os.makedirs(ARTIFACTS_DIR, exist_ok=True)
     print(f"\nSaving model artifact to: {MODEL_ARTIFACT_PATH}")
     joblib.dump(primary_pipe, MODEL_ARTIFACT_PATH)
@@ -338,7 +510,12 @@ def run_training_pipeline() -> Tuple[Pipeline, Dict[str, Any], Dict[str, Any]]:
     with open(METRICS_PATH, "w", encoding="utf-8") as f:
         json.dump(metrics_report, f, indent=2)
 
-    print("\nTraining and artifact export complete!")
+    report_path = os.path.join(ARTIFACTS_DIR, "report_results.json")
+    print(f"Saving academic report results to: {report_path}")
+    with open(report_path, "w", encoding="utf-8") as f:
+        json.dump(report_results, f, indent=2)
+
+    print("\nTraining, ablation evaluation, cross-validation, and artifact export complete!")
     return primary_pipe, metadata, metrics_report
 
 
